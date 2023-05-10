@@ -1,0 +1,79 @@
+// Make a basic HTTP callout and print the result using the system. debug
+
+
+Http http = new Http();
+HttpRequest request = new HttpRequest();
+request.setEndpoint('https://postman-echo.com/get?foo1=bar1&foo2=bar2');
+request.setMethod('GET');
+
+HttpResponse response = http.send(request);
+if (response.getStatusCode() == 200) {
+    System.debug(response.getBody());
+} else {
+    System.debug('HTTP callout failed with status code: ' + response.getStatusCode() + ' and message: ' + response.getStatus());
+}
+
+=================================================================================
+
+
+
+// The Scenario is that when we put any value in the city field so the temperature of the particular city will display. for this, I have integrated with the third party by requesting their End Point URL.
+
+//Apex Class 
+
+
+public class Integration_Weather {
+    @future(callout=true)
+    public static void Integration_WeatherMethod(set<id>newlist){
+        list<Weather_Information_c>wetlist = new list<Weather_Information_c>();
+        for(Weather_Information_c wet: [select id,name,City__c,Temperature__c from Weather_Information_c where ID IN :newlist]){
+            Http p= new Http();
+            HttpRequest request= new HttpRequest();
+           string url = 'http://api.weatherstack.com/current?access_key=40cd63921ce3a127a21de61486ebcfc5&query='+wet.City__c;
+            request.setEndpoint(url);
+            request.setMethod('GET');
+            HttpResponse response= P.send(request);
+            string JsonString=response.getBody();
+            system.JSONParser Jp=Json.createParser(jsonString);
+            decimal temp;
+            while(Jp.nextToken()!=null){
+                if(Jp.getText()=='Temperature'){
+                    Jp.NextToken();
+                    system.debug('places===>' + Jp.getText());
+                    temp= (Decimal)Jp.getDecimalValue();
+                    system.debug('places' + temp);
+                }
+            }
+            wet.Temperature__c=temp;
+            wetlist.add(wet);
+            
+        }
+        update wetlist;
+    }
+   
+
+}
+
+=================================================
+
+Trigger
+=======
+
+
+trigger IntegrationWeatherTrigger on Weather_Information__c (after insert) {
+    
+if(trigger.isafter){
+        if(trigger.isinsert){
+            set<id>SetId= new set<id>();
+            for(Weather_Information__c abc:trigger.new){
+                SetId.add(abc.id);               
+            }
+            Integration_Weather.Integration_WeatherMethod(SetId);
+        }
+    }
+}
+
+
+
+
+
